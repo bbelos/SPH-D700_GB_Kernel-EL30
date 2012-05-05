@@ -17,6 +17,10 @@
 #include <linux/backing-dev.h>
 #include "internal.h"
 
+static int fsync_disabled = 1;
+module_param(fsync_disabled, int, 0600);
+MODULE_PARM_DESC(delay, "Change fsync() to work as a no-op: this is DANGEROUS");
+
 #define VALID_FLAGS (SYNC_FILE_RANGE_WAIT_BEFORE|SYNC_FILE_RANGE_WRITE| \
 			SYNC_FILE_RANGE_WAIT_AFTER)
 
@@ -144,6 +148,9 @@ int file_fsync(struct file *filp, int datasync)
 	struct super_block * sb;
 	int ret, err;
 
+	if (unlikely(fsync_disabled))
+		return 0;
+
 	/* sync the inode to buffers */
 	ret = write_inode_now(inode, 0);
 
@@ -176,6 +183,9 @@ int vfs_fsync_range(struct file *file, loff_t start, loff_t end, int datasync)
 	struct address_space *mapping = file->f_mapping;
 	int err, ret;
 
+	if (unlikely(fsync_disabled))
+		return 0;
+
 	if (!file->f_op || !file->f_op->fsync) {
 		ret = -EINVAL;
 		goto out;
@@ -203,6 +213,9 @@ static int do_fsync(unsigned int fd, int datasync)
   struct file *file;
   int ret = -EBADF;
 
+  if (unlikely(fsync_disabled))
+	return 0;
+
   file = fget(fd);
   if (file) {
     ret = vfs_fsync(file, datasync);
@@ -211,6 +224,19 @@ static int do_fsync(unsigned int fd, int datasync)
   return ret;
 }
 #endif /* CONFIG_FILE_SYNC_DISABLE */
+
+static int do_fsync(unsigned int fd, int datasync)
+{
+  struct file *file;
+  int ret = -EBADF;
+
+  file = fget(fd);
+  if (file) {
+    ret = vfs_fsync(file, datasync);
+    fput(file);
+  }
+  return ret;
+}
 
 /**
  * vfs_fsync - perform a fsync or fdatasync on a file
@@ -318,6 +344,9 @@ SYSCALL_DEFINE(sync_file_range)(int fd, loff_t offset, loff_t nbytes,
 	int fput_needed;
 	umode_t i_mode;
 
+	if (unlikely(fsync_disabled))
+		return 0;
+
 	ret = -EINVAL;
 	if (flags & ~VALID_FLAGS)
 		goto out;
@@ -391,7 +420,6 @@ out_put:
 out:
 	return ret;
 }
-#endif /* CONFIG_FILE_SYNC_DISABLE */
 
 #ifdef CONFIG_HAVE_SYSCALL_WRAPPERS
 asmlinkage long SyS_sync_file_range(long fd, loff_t offset, loff_t nbytes,
@@ -410,6 +438,8 @@ SYSCALL_DEFINE(sync_file_range2)(int fd, unsigned int flags,
 {
 	return sys_sync_file_range(fd, offset, nbytes, flags);
 }
+#endif /* CONFIG_FILE_SYNC_DISABLE */
+
 #ifdef CONFIG_HAVE_SYSCALL_WRAPPERS
 asmlinkage long SyS_sync_file_range2(long fd, long flags,
 				     loff_t offset, loff_t nbytes)
