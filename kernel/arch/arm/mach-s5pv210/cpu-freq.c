@@ -1026,7 +1026,7 @@ static int __init s5pv210_cpufreq_driver_init(struct cpufreq_policy *policy)
 
 	cpufreq_frequency_table_get_attr(freq_table, policy->cpu);
 
-	policy->cpuinfo.transition_latency = 40000;	/* 1us */
+	policy->cpuinfo.transition_latency = 10000;	/* 30us */
 
 	rate = clk_get_rate(mpu_clk);
 	i = 0;
