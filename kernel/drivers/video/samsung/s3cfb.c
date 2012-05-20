@@ -38,7 +38,13 @@
 #include <linux/suspend.h>
 #endif
 #include "s3cfb.h"
-//#include "logo_rgb24_wvga_portrait.h"
+#ifdef CONFIG_FB_S3C_SPLASH_SCREEN
+#ifdef CONFIG_MACH_VICTORY
+#include "logo_rgb24_wvga_portrait.h"
+#include <mach/regs-clock.h>
+#define BOOT_FB_WINDOW	0
+#endif
+#endif
 #ifdef CONFIG_FB_S3C_MDNIE
 #include "s3cfb_mdnie.h"
 #include <linux/delay.h>
@@ -110,6 +116,12 @@ MODULE_PARM_DESC(bootloaderfb, "Address of booting logo image in Bootloader");
 static int s3cfb_draw_logo(struct fb_info *fb)
 {
 #ifdef CONFIG_FB_S3C_SPLASH_SCREEN
+#ifdef CONFIG_MACH_VICTORY
+    if (readl(S5P_INFORM5)) //LPM_CHARGING mode
+        memcpy(fb->screen_base, charging, fb->var.yres * fb->fix.line_length);
+    else
+        memcpy(fb->screen_base, LOGO_RGB24, fb->var.yres * fb->fix.line_length);
+#else
 	struct fb_fix_screeninfo *fix = &fb->fix;
 	struct fb_var_screeninfo *var = &fb->var;
 
@@ -146,6 +158,7 @@ static int s3cfb_draw_logo(struct fb_info *fb)
 			fb->screen_base[offset++] = 0;
 		}
 	}
+#endif  /* CONFIG_MACH_VICTORY */
 #endif
 /*
 	if (bootloaderfb) {
